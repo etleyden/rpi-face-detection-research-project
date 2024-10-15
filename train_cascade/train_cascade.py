@@ -50,6 +50,7 @@ def generate_positives_info():
         for image_filename in os.listdir(images_dir):
             current_img = ""
             # Ensure the file is an image
+            bad_image = False
             if image_filename.endswith('.jpg') or image_filename.endswith('.png'):
                 image_path = os.path.join(images_dir, image_filename)
                 
@@ -87,9 +88,13 @@ def generate_positives_info():
                         x, y, width, height = convert_yolo_to_opencv(bbox, img_width, img_height)
                         
                         # Write the bounding box info to the .info file
+                        if width * height <= 0:
+                            print(f"invalid bounding box: {image_path}")
+                            bad_image = True
+                            break
                         current_img += f" {x} {y} {width} {height}"
                     
-            pos_imgs.append(current_img)
+            if not bad_image: pos_imgs.append(current_img)
             
         # select a number of negatives
         print(f"NUM SAMPLES: {len(pos_imgs)}")

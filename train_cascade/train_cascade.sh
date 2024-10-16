@@ -23,4 +23,4 @@ opencv_createsamples -info positives.info -vec positives.vec -num 13382 -w 24 -h
 
 echo "Train Cascade\n"
 
-opencv_traincascade -data classifier -vec positives.vec -bg negatives.txt -numPos 1500 -numNeg 1317 -w 24 -h 24 -minHitRate 0.999
+opencv_traincascade -data classifier -vec positives.vec -bg negatives.txt -numPos 1500 -numNeg 1317 -numStages 10 -w 24 -h 24 -minHitRate 0.999

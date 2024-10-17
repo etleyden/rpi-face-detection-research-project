@@ -5,6 +5,7 @@
 - [Link to Draft on Google Drive](https://docs.google.com/document/d/1H4GUHuNXbkjKFACpi70M0ZhKLtLqq29fNws-9ac8Di0/edit?usp=sharing)
 - [Link to Positive Image Set](https://www.kaggle.com/datasets/fareselmenshawii/face-detection-dataset)
 - [Link to Negative Image Set](https://www.kaggle.com/datasets/sagarkarar/nonface-and-face-dataset)
+- [Link to WIDER FACE Test Set](http://shuoyang1213.me/WIDERFACE/)
 - [Link to OpenCV3.4](https://github.com/opencv/opencv/tree/3.4)
 - [Link to OpenCV4](https://github.com/opencv/opencv/archive/refs/tags/4.10.0.zip)
 

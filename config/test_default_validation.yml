@@ -1,0 +1,5 @@
+model: model/haarcascade_frontalface_default.xml
+images: archive/pos_images/val/
+annotations: archive/yolo_labels/val/
+iou_out: results/test_default_validation_iou.txt
+results_out: results/test_default_validation_results.txt

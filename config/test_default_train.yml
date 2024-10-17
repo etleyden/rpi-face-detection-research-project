@@ -1,0 +1,5 @@
+model: model/haarcascade_frontalface_default.xml
+images: archive/pos_images/train/
+annotations: archive/yolo_labels/train/
+iou_out: results/test_default_train_iou.txt
+results_out: results/test_default_train_results.txt

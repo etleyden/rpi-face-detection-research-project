@@ -7,6 +7,7 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 from jsonargparse import ArgumentParser, ActionConfigFile
 from tqdm import tqdm
 
@@ -42,95 +43,106 @@ annotations: {annotations_path}
     # set up the haar classifier
     face_cascade = cv2.CascadeClassifier(model_path)
     
-    predicted_faces = {}
-    actual_faces = {}
 
     files = os.listdir(image_directory)
 
-    for k in np.linspace(1.05, 1.4, 35):
-        for l in range(1, 11):
-            predicted_faces[(k, l)] = []
-            actual_faces[(k, l)] = []
-            count = 0
-            for image_filename in tqdm(files, desc=f"Face detection for scaleFactor {k} and minNeighbors {l}"):
-                f = os.path.join(image_directory, image_filename)
+    predicted_faces = []
+    actual_faces = []
+    count = 0
+    for image_filename in tqdm(files, desc=f"Detecting faces in directory"):
+        f = os.path.join(image_directory, image_filename)
 
-                #detect faces
-                img = cv2.imread(f)
-                img_height, img_width = img.shape[:2]
-                faces = detect_faces(face_cascade, img)
+        #detect faces
+        img = cv2.imread(f)
+        img_height, img_width = img.shape[:2]
 
+        faces = detect_faces(face_cascade, img)
                 
-                #load the annotations
-                with open(os.path.join(annotations_path, image_filename.replace("jpg", "txt"))) as ann_f:
-                    annotations = ann_f.read().splitlines()
-                    num_obj = len(annotations)
-                    objs = []
-                    for line in annotations:
-                        bbox = [float(coord) for coord in line.split()[1:]]
-                        objs.append(list(convert_yolo_to_opencv(bbox, img_width, img_height)))
+        with open(os.path.join(annotations_path, image_filename.replace("jpg", "txt"))) as ann_f:
+        #load the annotations
+            annotations = ann_f.read().splitlines()
+            num_obj = len(annotations)
+            objs = []
+            for line in annotations:
+                bbox = [float(coord) for coord in line.split()[1:]]
+                objs.append(list(convert_yolo_to_opencv(bbox, img_width, img_height)))
 
-                # draw the images
-                # for face in faces:
-                #     cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 0, 0), 2)
-                # for face in objs:
-                #     cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 255, 255), 2)
-                # cv2.imwrite(f"{count}.jpg", img) 
+        # for face in faces:
+        # draw the images
+        #     cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 0, 0), 2)
+        # for face in objs:
+        #     cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 255, 255), 2)
+        # cv2.imwrite(f"{count}.jpg", img) 
 
-                # log predicted and actual faces
-                predicted_faces[(k, l)].append(faces)
-                actual_faces[(k, l)].append(objs)
+        # log predicted and actual faces
+        predicted_faces.append(faces)
+        actual_faces.append(objs)
 
-                count += 1
-                if count > 50: break
+        count += 1
+        #if count > 5: break
 
-    fig, axs = plt.subplots(1, 2)
 
-    ious_per_threshold = {}
-    precision_per_threshold = {}
-    recall_per_threshold = {}
-    f1_per_threshold = {}
-    for k in np.linspace(1.05, 1.4, 35):
-        for l in range(1, 11):
-            ious_per_threshold[(k, l)] = []
-            precision_per_threshold[(k, l)] = []
-            recall_per_threshold[(k, l)] = []
-            f1_per_threshold[(k, l)] = []
-            for i in np.linspace(0, 1, 100):
-                total_tp = 0
-                total_fn = 0
-                total_fp = 0
-                ious_in_threshold = []
-                for j_idx, j in enumerate(predicted_faces[(k, l)]):
-                    tp, fn, fp, ious = match_boxes(predicted_faces[(k, l)][j_idx], actual_faces[k, l][j_idx], i)
-                    total_tp += tp
-                    total_fn += fn
-                    total_fp += fp
-                    ious_in_threshold += ious
-                precision = total_tp / (total_tp + total_fp)
-                recall = total_tp / (total_tp + total_fn)
-                precision_per_threshold[(k, l)].append(precision)
-                recall_per_threshold[(k, l)].append(recall)
-                f1_per_threshold[(k, l)].append((2 * precision * recall) / (precision + recall) if precision + recall > 0 else 0)
-                ious_per_threshold[(k, l)].append(ious_in_threshold)
+    # compute IOUS, TP/FP/FN, Precision/Recall/F1
+    ious_per_threshold = []
+    precision_per_threshold = []
+    recall_per_threshold = []
+    f1_per_threshold = []
+    for i in np.arange(0, 1.01, 0.01):
+        total_tp = 0
+        total_fn = 0
+        total_fp = 0
+        ious_in_threshold = []
+        for j_idx, j in enumerate(predicted_faces):
+            tp, fn, fp, ious = match_boxes(predicted_faces[j_idx], actual_faces[j_idx], i)
+            total_tp += tp
+            total_fn += fn
+            total_fp += fp
+            ious_in_threshold += ious
+        precision = total_tp / (total_tp + total_fp)
+        recall = total_tp / (total_tp + total_fn)
+        precision_per_threshold.append(precision)
+        recall_per_threshold.append(recall)
+        f1_per_threshold.append((2 * precision * recall) / (precision + recall) if precision + recall > 0 else 0)
+        ious_per_threshold.append(ious_in_threshold)
         
     # save the precision/recall curve
-    max_index = max(range(len(f1_per_threshold[(1.1, 5)])), key=f1_per_threshold[(1.1, 5)].__getitem__) 
+    max_index = max(range(len(f1_per_threshold)), key=f1_per_threshold.__getitem__) 
 
-    axs[0].hist(ious_per_threshold[(1.1, 5)][max_index], bins=50)
-    axs[0].set_xlabel("IOU Distribution")
-    axs[0].set_ylabel("Count")
-    for k in np.linspace(1.05, 1.4, 35):
-        for l in range(1, 11): 
-            axs[1].scatter(recall_per_threshold[(k, l)], precision_per_threshold[(k, l)])
-    axs[1].set_xlabel("Recall")
-    axs[1].set_ylabel("Precision")
-    axs[1].set_xlim(left=0, right=1.0)
-    axs[1].set_ylim(bottom=0, top=1.0)
+    fig, axs = plt.subplots(2, 2)
+    # create plots
+    # histogram of IOUS partial FP
+    axs[0, 0].hist(ious_per_threshold[max_index], bins=50)
+    axs[0, 0].set_xlabel("IOU Distribution")
+    axs[0, 0].set_ylabel("Count")
+    axs[0, 0].set_ylim(bottom=0, top=2000)
+
+    # histogram of IOUS, full FP
+    axs[1, 0].hist(ious_per_threshold[max_index], bins=50)
+    axs[1, 0].set_xlabel("IOU Distribution")
+    axs[1, 0].set_ylabel("Count")
+
+    # precision and recall for different thresholds
+    colors = matplotlib.cm.rainbow(np.arange(0,1.01,0.01))
+    axs[0, 1].scatter(recall_per_threshold, precision_per_threshold)
+    axs[0, 1].scatter([recall_per_threshold[max_index]], [precision_per_threshold[max_index]], c='r', label=f"thresh: {0.01 * max_index}")
+    axs[0, 1].set_xlabel("Recall")
+    axs[0, 1].set_ylabel("Precision")
+    axs[0, 1].legend(loc="best")
+    axs[0, 1].set_xlim(left=0, right=1.0)
+    axs[0, 1].set_ylim(bottom=0, top=1.0)
+
     fig.tight_layout()
+
+    # maybe drop the FP and set threshold from normal distribution?
 
     plt.show() 
 
+
+# generate a range of distinct colors for sets in a matplotlib plot
+def get_cmap(n, name='hsv'):
+    '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
+    RGB color; the keyword argument name must be a standard mpl colormap name.'''
+    return plt.get_cmap(name, n)
 
 def iou(boxA, boxB):
     # boxA and boxB are both in the format [x, y, width, height]

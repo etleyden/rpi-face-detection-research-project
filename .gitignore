@@ -2,3 +2,5 @@ archive/*
 
 *.swo
 *.swp
+
+result*

@@ -11,9 +11,10 @@ except ImportError:
 
 if len(sys.argv) < 2:
     print("Usage: python face_detection.py <rpi_status>")
-    exit()
+    rpi_status = 0
+else:
+    rpi_status = int(sys.argv[1])
 
-rpi_status = int(sys.argv[1])
 
 
 print(rpi_status)
@@ -29,6 +30,8 @@ if rpi_status == 1:
     video_capture.start()
 else:
     video_capture = cv2.VideoCapture(0)  # Use 0 for webcam. For a video file, provide its path.
+
+faces_in_frame = 0
 
 while True:
     frame = None
@@ -53,8 +56,9 @@ while True:
         flags=cv2.CASCADE_SCALE_IMAGE
     )
 
-    if len(faces) > 0:
+    if len(faces) != faces_in_frame:
         print(f"{len(faces)} faces detected")
+        faces_in_frame = len(faces)
 
     # Draw rectangles around the faces
     for (x, y, w, h) in faces:

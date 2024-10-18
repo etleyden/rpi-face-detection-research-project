@@ -1,3 +1,7 @@
+# Test the accuracy of a haar feature-based cascade classifier
+# - Output all the IOU values for every identified face
+# - Compute the precision and recall of the model over the threshold curve (where the threshold is IOU)
+# - Write all of this information to files, so it can be viewed instead of having to run the model again. 
 import sys
 import os
 import cv2
@@ -8,7 +12,6 @@ from tqdm import tqdm
 
 if len(sys.argv) < 2:
     print(f"Usage: python test_model.py <model_xml>")
-
 
 def main():
     parser = ArgumentParser()
@@ -39,57 +42,92 @@ annotations: {annotations_path}
     # set up the haar classifier
     face_cascade = cv2.CascadeClassifier(model_path)
     
-    ious = []
+    predicted_faces = {}
+    actual_faces = {}
 
     files = os.listdir(image_directory)
 
-    total_expected_faces = 0
-    
-    for image_filename in tqdm(files, desc="Detecting faces for each image in the directory..."):
-        f = os.path.join(image_directory, image_filename)
+    for k in np.linspace(1.05, 1.4, 35):
+        for l in range(1, 11):
+            predicted_faces[(k, l)] = []
+            actual_faces[(k, l)] = []
+            count = 0
+            for image_filename in tqdm(files, desc=f"Face detection for scaleFactor {k} and minNeighbors {l}"):
+                f = os.path.join(image_directory, image_filename)
 
-        #detect faces
-        img = cv2.imread(f)
-        img_height, img_width = img.shape[:2]
-        faces = detect_faces(face_cascade, img)
+                #detect faces
+                img = cv2.imread(f)
+                img_height, img_width = img.shape[:2]
+                faces = detect_faces(face_cascade, img)
 
-        
-        #load the annotations
-        with open(os.path.join(annotations_path, image_filename.replace("jpg", "txt"))) as ann_f:
-            annotations = ann_f.read().splitlines()
-            num_obj = len(annotations)
-            objs = []
-            for line in annotations:
-                bbox = [float(coord) for coord in line.split()[1:]]
-                objs.append(list(convert_yolo_to_opencv(bbox, img_width, img_height)))
-            total_expected_faces += num_obj
-        
-        # compute the IOU values
-        ious += match_boxes(faces, objs)
+                
+                #load the annotations
+                with open(os.path.join(annotations_path, image_filename.replace("jpg", "txt"))) as ann_f:
+                    annotations = ann_f.read().splitlines()
+                    num_obj = len(annotations)
+                    objs = []
+                    for line in annotations:
+                        bbox = [float(coord) for coord in line.split()[1:]]
+                        objs.append(list(convert_yolo_to_opencv(bbox, img_width, img_height)))
 
+                # draw the images
+                # for face in faces:
+                #     cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 0, 0), 2)
+                # for face in objs:
+                #     cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 255, 255), 2)
+                # cv2.imwrite(f"{count}.jpg", img) 
+
+                # log predicted and actual faces
+                predicted_faces[(k, l)].append(faces)
+                actual_faces[(k, l)].append(objs)
+
+                count += 1
+                if count > 50: break
 
     fig, axs = plt.subplots(1, 2)
 
-    # save raw iou results
-    with open(iou_out) as f:
-        for iou in ious:
-            f.write(f"{iou}\n")
-    
-    # save the precision/recall curve
-    with open(results_out) as f:
-        curve = []
-        f.write(f"False Positives: {correct.count(0.0)}\n")
-        for i in np.linspace(0, 1, 100):
-            correct = sum(x > i for x in ious)
-            precision = correct / len(ious)
-            recall = correct / total_expected_faces
-            curve.append((recall, precision))
+    ious_per_threshold = {}
+    precision_per_threshold = {}
+    recall_per_threshold = {}
+    f1_per_threshold = {}
+    for k in np.linspace(1.05, 1.4, 35):
+        for l in range(1, 11):
+            ious_per_threshold[(k, l)] = []
+            precision_per_threshold[(k, l)] = []
+            recall_per_threshold[(k, l)] = []
+            f1_per_threshold[(k, l)] = []
+            for i in np.linspace(0, 1, 100):
+                total_tp = 0
+                total_fn = 0
+                total_fp = 0
+                ious_in_threshold = []
+                for j_idx, j in enumerate(predicted_faces[(k, l)]):
+                    tp, fn, fp, ious = match_boxes(predicted_faces[(k, l)][j_idx], actual_faces[k, l][j_idx], i)
+                    total_tp += tp
+                    total_fn += fn
+                    total_fp += fp
+                    ious_in_threshold += ious
+                precision = total_tp / (total_tp + total_fp)
+                recall = total_tp / (total_tp + total_fn)
+                precision_per_threshold[(k, l)].append(precision)
+                recall_per_threshold[(k, l)].append(recall)
+                f1_per_threshold[(k, l)].append((2 * precision * recall) / (precision + recall) if precision + recall > 0 else 0)
+                ious_per_threshold[(k, l)].append(ious_in_threshold)
         
-        f.write(f"{precision, recall}\n")
+    # save the precision/recall curve
+    max_index = max(range(len(f1_per_threshold[(1.1, 5)])), key=f1_per_threshold[(1.1, 5)].__getitem__) 
 
-    recall_list, precision_list = zip(*curve)
-    axs[0].hist(ious, bins=50)
-    axs[1].scatter(recall_list, precision_list)
+    axs[0].hist(ious_per_threshold[(1.1, 5)][max_index], bins=50)
+    axs[0].set_xlabel("IOU Distribution")
+    axs[0].set_ylabel("Count")
+    for k in np.linspace(1.05, 1.4, 35):
+        for l in range(1, 11): 
+            axs[1].scatter(recall_per_threshold[(k, l)], precision_per_threshold[(k, l)])
+    axs[1].set_xlabel("Recall")
+    axs[1].set_ylabel("Precision")
+    axs[1].set_xlim(left=0, right=1.0)
+    axs[1].set_ylim(bottom=0, top=1.0)
+    fig.tight_layout()
 
     plt.show() 
 
@@ -120,36 +158,34 @@ def iou(boxA, boxB):
     
     return iou_value
 
-def match_boxes(predicted_boxes, expected_boxes):
-    top_n = len(predicted_boxes)
-    iou_list = []
-    
-    # Compute IoU for all pairs of predicted and expected boxes
-    for i, pred_box in enumerate(predicted_boxes):
-        for j, exp_box in enumerate(expected_boxes):
-            iou_value = iou(pred_box, exp_box)
-            #iou_list.append(iou_value)
-            iou_list.append((iou_value, i, j))  # (IoU value, predicted index, expected index)
-    
-    # Sort by IoU in descending order
-    iou_list.sort(reverse=True, key=lambda x: x[0])
-    
-    # Initialize a set to keep track of the matched indices
-    matched_pred = set()
-    matched_exp = set()
-    
-    # Find the top `n` pairs with the highest IoU values
-    top_matches = []
-    for iou_value, i, j in iou_list:
-        if i not in matched_pred and j not in matched_exp:
-            top_matches.append(iou_value)
-            matched_pred.add(i)
-            matched_exp.add(j)
-        if len(top_matches) >= top_n:
-            break
-    
-    return top_matches
+def match_boxes(predicted_boxes, actual_boxes, iou_threshold):
+    ground_truth_boxes = actual_boxes.copy()
+    true_positives = 0
+    false_positives = 0
+    false_negatives = 0
 
+    iou_list = []
+    # Match predicted boxes with ground truth boxes
+    for pred_box in predicted_boxes:
+        best_iou = 0
+        best_gt_box = None
+        
+        for gt_box in ground_truth_boxes:
+            iou_value = iou(pred_box, gt_box)
+            if iou_value > best_iou:
+                best_iou = iou_value
+                best_gt_box = gt_box
+        
+        if best_iou >= iou_threshold and best_gt_box is not None:
+            true_positives += 1
+            ground_truth_boxes.remove(best_gt_box)  # Remove matched ground truth box
+        else:
+            false_positives += 1
+        iou_list.append(best_iou)
+
+    # Any remaining ground truth boxes are false negatives
+    false_negatives = len(ground_truth_boxes)
+    return true_positives, false_negatives, false_positives, iou_list
 
 def convert_yolo_to_opencv(yolo_bbox, img_width, img_height):
     """
@@ -170,7 +206,7 @@ def convert_yolo_to_opencv(yolo_bbox, img_width, img_height):
     
     return x, y, int(width), int(height)
 
-def detect_faces(face_cascade: cv2.CascadeClassifier, img):
+def detect_faces(face_cascade: cv2.CascadeClassifier, img, scaleFactor=1.1, minNeighbors=5):
     grayscale_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     faces = face_cascade.detectMultiScale(
         grayscale_img,
@@ -180,7 +216,7 @@ def detect_faces(face_cascade: cv2.CascadeClassifier, img):
         flags=cv2.CASCADE_SCALE_IMAGE
     )
 
-    return list(faces)
+    return [face.tolist() for face in faces]
 
 
 if __name__ == "__main__":

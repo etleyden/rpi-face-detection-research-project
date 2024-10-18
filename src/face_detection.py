@@ -77,3 +77,4 @@ if rpi_status == 1:
 else:
     video_capture.release()
 cv2.destroyAllWindows()
+exit()

@@ -3,6 +3,7 @@ import subprocess
 import sys
 import time
 import os
+from datetime import datetime
 
 # Function to monitor CPU and memory usage of a process
 def monitor_utilization(pid, duration, interval=1):
@@ -13,15 +14,17 @@ def monitor_utilization(pid, duration, interval=1):
     start_time = time.time()
     
     while time.time() - start_time < duration:
+        
         try:
             # Record CPU and memory usage at the current time
             cpu_usage = process.cpu_percent(interval=interval)
             memory_usage = process.memory_info().rss / (1024 * 1024)  # Convert to MB
-            
+            if process.status() == psutil.STATUS_ZOMBIE:
+                break
             cpu_usages.append(cpu_usage)
             memory_usages.append(memory_usage)
             
-            print(f"Process {pid} - CPU: {cpu_usage:.2f}% | Memory: {memory_usage:.2f} MB")
+            print(f"{datetime.now().strftime('[%H:%M:%S]')}::CPU-{cpu_usage:06.2f}% | MEM-{memory_usage:06.2f}MB")
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
             # If the process has terminated or can't be accessed, break the loop
             print(f"Process terminated or inaccessible. {e}")
@@ -38,16 +41,17 @@ def profile_script(script_path):
     # Start the target Python script using subprocess
     print(f"Starting {script_path}...")
     process = subprocess.Popen([sys.executable, script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print(f"PID: {process.pid}")
     
     try:
         # Monitor CPU and memory usage for the duration of the process's execution
-        cpu_usages, memory_usages = monitor_utilization(process.pid, duration=10, interval=1)
+        cpu_usages, memory_usages = monitor_utilization(process.pid, duration=60, interval=1)
         
         # Wait for the process to complete
         process.wait()
 
         output, error = process.communicate()
-        print(output, error)
+        #print(output.decode())
         
         # Calculate min, max, and average CPU and memory usage
         if cpu_usages and memory_usages:
@@ -69,6 +73,7 @@ def profile_script(script_path):
         print(f"Error while profiling: {e}")
     finally:
         process.terminate()
+        exit()
 
 if __name__ == '__main__':
     # Ensure the script is passed a target file

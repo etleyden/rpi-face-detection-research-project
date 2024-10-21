@@ -1,5 +1,4 @@
-import sys
-import cv2
+import sys, cv2, time
 
 try:
     from picamera2 import Picamera2, Preview
@@ -9,23 +8,34 @@ except ImportError:
     print("Did not import picamera2")
     pass
 
-if len(sys.argv) < 2:
-    print("Usage: python face_detection.py <rpi_status>")
-    rpi_status = 0
-else:
-    rpi_status = int(sys.argv[1])
+# low code stopwatch that just returns the distance between the last timestamp and now
+class Stopwatch():
+    def __init__(self):
+        self.timestamp = []
+    def mark_lap(self):
+        self.timestamp.append(time.time())
+        if len(self.timestamp) > 1:
+            return round((self.timestamp[-1] - self.timestamp[-2])*1000, 2)
 
+timing = False
+rpi_status = False
+if "-r" in sys.argv:
+    rpi_status = True
 
+if "-t" in sys.argv:
+    timing = True
+    timer = Stopwatch()
+    time_records = {}
 
-print(rpi_status)
 # Load the pre-trained Haar Cascade classifier for face detection
 face_cascade = cv2.CascadeClassifier('model/haarcascade_frontalface_default.xml')
 # Load the custom-trained Haar Cascade classifier for face-detection (currently not good)
 #face_cascade = cv2.CascadeClassifier("classifier/cascade.xml")
 
 video_capture = None
+
 # Open the webcam (or video file)
-if rpi_status == 1:
+if rpi_status:
     video_capture = Picamera2()
     video_capture.start()
 else:
@@ -34,15 +44,15 @@ else:
 faces_in_frame = 0
 
 while True:
+    if timer:
+        timer.mark_lap()
     frame = None
     # Capture frame-by-frame
-    if rpi_status == 1:
+    if rpi_status:
         frame = video_capture.capture_array()
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     else:
         ret, frame = video_capture.read()
-
-    if rpi_status == 1:
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     # Convert the frame to grayscale (Haar Cascade works with grayscale images)
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -56,9 +66,18 @@ while True:
         flags=cv2.CASCADE_SCALE_IMAGE
     )
 
+    if timing:
+        face_detection_time = timer.mark_lap()
+
     if len(faces) != faces_in_frame:
         print(f"{len(faces)} faces detected")
         faces_in_frame = len(faces)
+
+    if timing:
+        try:
+            time_records[len(faces)].append(face_detection_time)
+        except KeyError:
+            time_records[len(faces)] = [face_detection_time]
 
     # Draw rectangles around the faces
     for (x, y, w, h) in faces:
@@ -72,9 +91,21 @@ while True:
         break
 
 # Release the video capture object and close the display window
-if rpi_status == 1:
+if rpi_status:
     video_capture.close()
 else:
     video_capture.release()
 cv2.destroyAllWindows()
+
+# compute the statistics for frame by frame face detection
+print("Faces | Mean | Max  | Min  |")
+if timing:
+    for face_count in time_records:
+        mean = sum(time_records[face_count]) / len(time_records[face_count])
+        maximum = max(time_records[face_count])
+        minimum = min(time_records[face_count])
+
+        print(f"   {face_count:02} | {mean:04} | {minimum:04} | {maximum:04}")
+
+
 exit()

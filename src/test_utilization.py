@@ -13,7 +13,7 @@ def monitor_utilization(pid, duration, interval=1):
     
     start_time = time.time()
     
-    while time.time() - start_time < duration:
+    while True:
         
         try:
             # Record CPU and memory usage at the current time

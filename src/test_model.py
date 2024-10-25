@@ -67,12 +67,12 @@ annotations: {annotations_path}
                 bbox = [float(coord) for coord in line.split()[1:]]
                 objs.append(list(convert_yolo_to_opencv(bbox, img_width, img_height)))
 
-        # for face in faces:
+        for face in faces: # identified
         # draw the images
-        #     cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 0, 0), 2)
-        # for face in objs:
-        #     cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 255, 255), 2)
-        # cv2.imwrite(f"{count}.jpg", img) 
+            cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 0, 0), 2)
+        for face in objs: # annotated
+            cv2.rectangle(img, (face[0], face[1]), (face[0] + face[2], face[1] + face[3]), (255, 255, 255), 2)
+        if count < 50: cv2.imwrite(f"{count}.jpg", img) 
 
         # log predicted and actual faces
         predicted_faces.append(faces)
@@ -87,7 +87,7 @@ annotations: {annotations_path}
     precision_per_threshold = []
     recall_per_threshold = []
     f1_per_threshold = []
-    for i in np.arange(0, 1.01, 0.01):
+    for i in np.arange(0.01, 1.01, 0.01):
         total_tp = 0
         total_fn = 0
         total_fp = 0
@@ -125,6 +125,7 @@ annotations: {annotations_path}
     colors = matplotlib.cm.rainbow(np.arange(0,1.01,0.01))
     axs[0, 1].scatter(recall_per_threshold, precision_per_threshold)
     axs[0, 1].scatter([recall_per_threshold[max_index]], [precision_per_threshold[max_index]], c='r', label=f"thresh: {0.01 * max_index}")
+    print(f"r: {recall_per_threshold[max_index]}, p: {precision_per_threshold[max_index]}")
     axs[0, 1].set_xlabel("Recall")
     axs[0, 1].set_ylabel("Precision")
     axs[0, 1].legend(loc="best")

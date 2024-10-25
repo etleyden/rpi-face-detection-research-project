@@ -26,6 +26,8 @@ if "-t" in sys.argv:
     timing = True
     timer = Stopwatch()
     time_records = {}
+else:
+    timing = False
 
 # Load the pre-trained Haar Cascade classifier for face detection
 face_cascade = cv2.CascadeClassifier('model/haarcascade_frontalface_default.xml')
@@ -44,7 +46,7 @@ else:
 faces_in_frame = 0
 
 while True:
-    if timer:
+    if timing:
         timer.mark_lap()
     frame = None
     # Capture frame-by-frame
@@ -98,14 +100,16 @@ else:
 cv2.destroyAllWindows()
 
 # compute the statistics for frame by frame face detection
+print("=== Compute Time Summary ===")
 print("Faces | Mean | Max  | Min  |")
+print("------|------|------|------|")
 if timing:
     for face_count in time_records:
         mean = sum(time_records[face_count]) / len(time_records[face_count])
         maximum = max(time_records[face_count])
         minimum = min(time_records[face_count])
 
-        print(f"   {face_count:02} | {mean:04} | {minimum:04} | {maximum:04}")
+        print(f"   {int(face_count):02} | {int(mean):04} | {int(maximum):04} | {int(minimum):04} |")
 
 
 exit()

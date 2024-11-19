@@ -107,7 +107,7 @@ annotations: {annotations_path}
         
     # save the precision/recall curve
     max_index = max(range(len(f1_per_threshold)), key=f1_per_threshold.__getitem__) 
-
+    print(f"Best Threshold: {max_index * 0.01}")
     fig, axs = plt.subplots(2, 2)
     # create plots
     # histogram of IOUS partial FP
@@ -125,18 +125,31 @@ annotations: {annotations_path}
     colors = matplotlib.cm.rainbow(np.arange(0,1.01,0.01))
     axs[0, 1].scatter(recall_per_threshold, precision_per_threshold)
     axs[0, 1].scatter([recall_per_threshold[max_index]], [precision_per_threshold[max_index]], c='r', label=f"thresh: {0.01 * max_index}")
-    print(f"r: {recall_per_threshold[max_index]}, p: {precision_per_threshold[max_index]}")
+    print(f"0.00 P/R (r: {recall_per_threshold[max_index]}, p: {precision_per_threshold[max_index]})")
     axs[0, 1].set_xlabel("Recall")
     axs[0, 1].set_ylabel("Precision")
     axs[0, 1].legend(loc="best")
     axs[0, 1].set_xlim(left=0, right=1.0)
     axs[0, 1].set_ylim(bottom=0, top=1.0)
 
+    # precision and recall, but highlight the point with no false positives included. 
+    axs[1, 1].scatter(recall_per_threshold, precision_per_threshold)
+    axs[1, 1].scatter([recall_per_threshold[1]], [precision_per_threshold[1]], c='r', label=f'threshold=0.01')
+    print(f"0.01 P/R (r: {recall_per_threshold[1]}, p: {precision_per_threshold[1]})")
+    axs[1, 1].set_xlabel("Recall")
+    axs[1, 1].set_ylabel("Precision")
+    axs[1, 1].legend(loc="best")
+    axs[1, 1].set_xlim(left=0, right=1.0)
+    axs[1, 1].set_ylim(bottom=0, top=1.0)
     fig.tight_layout()
 
     # maybe drop the FP and set threshold from normal distribution?
-
     plt.show() 
+
+    # write the ious of the max threshold to disk
+    with open("ious.csv", "w+") as f:
+        for iou in ious_per_threshold[max_index]:
+            f.write(f"{iou}\n")
 
 
 # generate a range of distinct colors for sets in a matplotlib plot
